@@ -4,34 +4,34 @@ import android.content.Context
 
 object RateHistoryStore {
     private const val PREFS = "rate_history_prefs"
-    private const val KEY = "rate_history"
+    private const val MAX_POINTS = 20
 
-    // Храним как set строк вида "USD->RUB=76.67"
-    private fun getMap(context: Context): MutableMap<String, Double> {
+    private fun key(pair: String) = "series_$pair"
+
+    fun getSeries(context: Context, pair: String): List<Double> {
         val sp = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val set = sp.getStringSet(KEY, emptySet()) ?: emptySet()
+        val raw = sp.getString(key(pair), "") ?: ""
+        if (raw.isBlank()) return emptyList()
 
-        val map = mutableMapOf<String, Double>()
-        for (s in set) {
-            val parts = s.split("=")
-            if (parts.size != 2) continue
-            val pair = parts[0]
-            val value = parts[1].toDoubleOrNull() ?: continue
-            map[pair] = value
-        }
-        return map
+        return raw.split(",")
+            .mapNotNull { it.toDoubleOrNull() }
+            .takeLast(MAX_POINTS)
     }
 
-    fun get(context: Context, pair: String): Double? {
-        return getMap(context)[pair]
-    }
+    fun append(context: Context, pair: String, rate: Double) {
+        val current = getSeries(context, pair).toMutableList()
 
-    fun put(context: Context, pair: String, rate: Double) {
-        val map = getMap(context)
-        map[pair] = rate
+        // если последнее значение такое же — не дублируем
+        val last = current.lastOrNull()
+        if (last != null && last == rate) return
 
-        val set = map.map { "${it.key}=${it.value}" }.toSet()
+        current.add(rate)
+        val trimmed = current.takeLast(MAX_POINTS)
+
         val sp = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        sp.edit().putStringSet(KEY, set).apply()
+        sp.edit().putString(key(pair), trimmed.joinToString(",")).apply()
     }
+
+    fun getLast(context: Context, pair: String): Double? =
+        getSeries(context, pair).lastOrNull()
 }

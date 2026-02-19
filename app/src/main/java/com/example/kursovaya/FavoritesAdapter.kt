@@ -29,6 +29,7 @@ class FavoritesAdapter(
         val rateText: TextView = itemView.findViewById(R.id.rateText)
         val updateText: TextView = itemView.findViewById(R.id.updateText)
         val deleteButton: ImageButton = itemView.findViewById(R.id.deleteButton)
+        val sparkline: SparklineView = itemView.findViewById(R.id.sparkline)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
@@ -46,10 +47,10 @@ class FavoritesAdapter(
         val ctx = holder.itemView.context
         val isEmpty = item.pair == "__empty__"
         holder.deleteButton.visibility = if (isEmpty) View.GONE else View.VISIBLE
+        holder.sparkline.visibility = if (isEmpty) View.GONE else View.VISIBLE
 
         holder.deleteButton.setOnClickListener { onDeleteClick(item.pair) }
 
-        // Цвет рамки по тренду
         val strokeColor = when (item.trend) {
             RateTrend.UP -> android.R.color.holo_green_light
             RateTrend.DOWN -> android.R.color.holo_red_light
@@ -58,6 +59,6 @@ class FavoritesAdapter(
         }
         holder.card.strokeColor = ContextCompat.getColor(ctx, strokeColor)
 
-
+        holder.sparkline.setData(item.series, item.trend)
     }
 }

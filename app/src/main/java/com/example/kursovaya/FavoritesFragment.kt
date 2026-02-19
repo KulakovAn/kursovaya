@@ -29,7 +29,6 @@ class FavoritesFragment : Fragment(R.layout.fragment_favorites) {
     private lateinit var recycler: RecyclerView
     private lateinit var adapter: FavoritesAdapter
 
-    // Чтобы анимация списка была только один раз и не дергала при обновлениях
     private var firstAnimationDone = false
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -47,7 +46,6 @@ class FavoritesFragment : Fragment(R.layout.fragment_favorites) {
         recycler.layoutManager = LinearLayoutManager(requireContext())
         recycler.adapter = adapter
 
-        // Layout-анимация (важно: запускать будем только один раз)
         recycler.layoutAnimation =
             AnimationUtils.loadLayoutAnimation(requireContext(), R.anim.layout_fall_down)
 
@@ -58,7 +56,6 @@ class FavoritesFragment : Fragment(R.layout.fragment_favorites) {
 
     override fun onResume() {
         super.onResume()
-        // Обновим, если на первом табе добавили новое избранное
         refresh(showLoader = false)
     }
 
@@ -73,33 +70,26 @@ class FavoritesFragment : Fragment(R.layout.fragment_favorites) {
                         base = "—",
                         target = "—",
                         rateText = "Нет избранных валют",
-                        updatedText = "Добавь пары на вкладке «Курсы» (⭐)",
-                        trend = RateTrend.UNKNOWN
+                        updatedText = "Добавь пары на вкладке «Курсы» (⭐)"
                     )
                 )
-            ) {
-                runFirstAnimationOnce()
-            }
+            ) { runFirstAnimationOnce() }
 
             swipe.isRefreshing = false
             return
         }
 
-        // Показать “Загрузка...” без повторной анимации каждый раз
         val initial = pairs.mapNotNull { parsePair(it) }.map {
-            it.copy(rateText = "Загрузка...", updatedText = "", trend = RateTrend.UNKNOWN)
+            it.copy(rateText = "Загрузка...", updatedText = "", trend = RateTrend.UNKNOWN, series = emptyList())
         }
 
-        adapter.submitList(initial) {
-            runFirstAnimationOnce()
-        }
+        adapter.submitList(initial) { runFirstAnimationOnce() }
 
         if (showLoader) swipe.isRefreshing = true
 
         viewLifecycleOwner.lifecycleScope.launch {
             try {
                 val updated = withContext(Dispatchers.IO) { loadRatesForPairs(initial) }
-                // ВАЖНО: тут НЕ запускаем layoutAnimation, чтобы не было дергания
                 adapter.submitList(updated)
             } catch (e: Exception) {
                 Log.e(tagLog, "Ошибка обновления: ${e.message}", e)
@@ -132,13 +122,11 @@ class FavoritesFragment : Fragment(R.layout.fragment_favorites) {
             target = target,
             rateText = "Загрузка...",
             updatedText = "",
-            trend = RateTrend.UNKNOWN
+            trend = RateTrend.UNKNOWN,
+            series = emptyList()
         )
     }
 
-    /**
-     * Оптимизация: 1 запрос на каждую базовую валюту
-     */
     private suspend fun loadRatesForPairs(items: List<FavoriteUi>): List<FavoriteUi> {
         val ctx = requireContext()
         val bases = items.map { it.base }.distinct()
@@ -153,9 +141,9 @@ class FavoritesFragment : Fragment(R.layout.fragment_favorites) {
             val resp = responses[item.base]
 
             if (resp == null) {
-                item.copy(rateText = "Нет данных", updatedText = "", trend = RateTrend.UNKNOWN)
+                item.copy(rateText = "Нет данных", updatedText = "", trend = RateTrend.UNKNOWN, series = emptyList())
             } else if (resp.result != "success") {
-                item.copy(rateText = "Ошибка API", updatedText = "", trend = RateTrend.UNKNOWN)
+                item.copy(rateText = "Ошибка API", updatedText = "", trend = RateTrend.UNKNOWN, series = emptyList())
             } else {
                 val rate = resp.rates[item.target]
                 val niceTime = formatUtc(resp.lastUpdateUtc)
@@ -164,33 +152,36 @@ class FavoritesFragment : Fragment(R.layout.fragment_favorites) {
                     item.copy(
                         rateText = "Нет ${item.target}",
                         updatedText = if (niceTime.isBlank()) "" else "Обновлено: $niceTime",
-                        trend = RateTrend.UNKNOWN
+                        trend = RateTrend.UNKNOWN,
+                        series = RateHistoryStore.getSeries(ctx, item.pair)
                     )
                 } else {
-                    val old = RateHistoryStore.get(ctx, item.pair)
-                    val trend = when {
-                        old == null -> RateTrend.UNKNOWN
-                        rate > old -> RateTrend.UP
-                        rate < old -> RateTrend.DOWN
-                        else -> RateTrend.SAME
-                    }
+                    // сохраняем точку в историю
+                    RateHistoryStore.append(ctx, item.pair, rate)
+                    val series = RateHistoryStore.getSeries(ctx, item.pair)
 
-                    RateHistoryStore.put(ctx, item.pair, rate)
+                    // тренд по последним двум точкам
+                    val trend = if (series.size >= 2) {
+                        val a = series[series.size - 2]
+                        val b = series[series.size - 1]
+                        when {
+                            b > a -> RateTrend.UP
+                            b < a -> RateTrend.DOWN
+                            else -> RateTrend.SAME
+                        }
+                    } else RateTrend.UNKNOWN
 
                     item.copy(
                         rateText = "1 ${item.base} = ${"%.4f".format(rate)} ${item.target}",
                         updatedText = if (niceTime.isBlank()) "" else "Обновлено: $niceTime",
-                        trend = trend
+                        trend = trend,
+                        series = series
                     )
                 }
             }
         }
     }
 
-    /**
-     * minSdk 24: форматируем RFC1123 в локальное время телефона
-     * вход: "Tue, 18 Feb 2025 00:02:31 +0000"
-     */
     private fun formatUtc(input: String?): String {
         if (input.isNullOrBlank()) return ""
 
