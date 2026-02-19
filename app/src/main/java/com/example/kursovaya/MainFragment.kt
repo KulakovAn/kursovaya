@@ -21,7 +21,7 @@ class MainFragment : Fragment(R.layout.fragment_main) {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-
+        val favBtn = view.findViewById<Button>(R.id.addToFavButton)
         val baseInput = view.findViewById<EditText>(R.id.currencyInput)
         val targetInput = view.findViewById<EditText>(R.id.targetInput)
         val btn = view.findViewById<Button>(R.id.searchButton)
@@ -39,6 +39,19 @@ class MainFragment : Fragment(R.layout.fragment_main) {
             if (!target.matches(Regex("^[A-Z]{3}$"))) {
                 Toast.makeText(requireContext(), "Введите валюту назначения из 3 букв (например RUB)", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
+            }
+            favBtn.setOnClickListener {
+                val base = baseInput.text.toString().trim().uppercase()
+                val target = targetInput.text.toString().trim().uppercase()
+
+                if (!base.matches(Regex("^[A-Z]{3}$")) || !target.matches(Regex("^[A-Z]{3}$"))) {
+                    Toast.makeText(requireContext(), "Сначала введите валюты (USD → RUB)", Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+
+                val pair = "$base->$target"
+                FavoritesStore.add(requireContext(), pair)
+                Toast.makeText(requireContext(), "Добавлено: $pair", Toast.LENGTH_SHORT).show()
             }
 
             name.text = "$base → $target"

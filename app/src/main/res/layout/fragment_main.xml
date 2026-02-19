@@ -27,6 +27,12 @@
         android:layout_height="wrap_content"
         android:text="Получить курс"
         android:layout_marginTop="12dp"/>
+    <Button
+        android:id="@+id/addToFavButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="⭐ В избранное"
+        android:layout_marginTop="8dp"/>
 
     <TextView
         android:id="@+id/currencyName"
