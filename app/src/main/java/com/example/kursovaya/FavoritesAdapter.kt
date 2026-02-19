@@ -3,13 +3,14 @@ package com.example.kursovaya
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ImageButton
 import android.widget.TextView
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 
 class FavoritesAdapter(
-    private val onLongClickDelete: (pair: String) -> Unit
+    private val onDeleteClick: (pair: String) -> Unit
 ) : ListAdapter<FavoriteUi, FavoritesAdapter.VH>(Diff) {
 
     object Diff : DiffUtil.ItemCallback<FavoriteUi>() {
@@ -24,6 +25,7 @@ class FavoritesAdapter(
         val pairText: TextView = itemView.findViewById(R.id.pairText)
         val rateText: TextView = itemView.findViewById(R.id.rateText)
         val updateText: TextView = itemView.findViewById(R.id.updateText)
+        val deleteButton: ImageButton = itemView.findViewById(R.id.deleteButton)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
@@ -38,9 +40,12 @@ class FavoritesAdapter(
         holder.rateText.text = item.rateText
         holder.updateText.text = item.updatedText
 
-        holder.itemView.setOnLongClickListener {
-            onLongClickDelete(item.pair)
-            true
+        // скрываем кнопку удаления на "пустом" элементе
+        val isEmpty = item.pair == "__empty__"
+        holder.deleteButton.visibility = if (isEmpty) View.GONE else View.VISIBLE
+
+        holder.deleteButton.setOnClickListener {
+            onDeleteClick(item.pair)
         }
     }
 }
