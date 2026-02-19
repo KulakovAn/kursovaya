@@ -1,64 +1,47 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/mainRoot"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#0F0F1A">
+    android:orientation="vertical"
+    android:padding="16dp">
 
-    <!-- Поле ввода валюты -->
     <EditText
         android:id="@+id/currencyInput"
-        android:layout_width="0dp"
-        android:layout_height="50dp"
-        android:hint="Введите валюту (usd, eur...)"
-        android:textColor="#FFFFFF"
-        android:textColorHint="#AAAAAA"
-        android:background="@android:drawable/edit_text"
-        android:padding="12dp"
-        android:layout_marginStart="16dp"
-        android:layout_marginTop="16dp"
-        android:layout_marginBottom="16dp"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toStartOf="@+id/searchButton"/>
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="База (например USD)"
+        android:inputType="textCapCharacters" />
 
-    <!-- Кнопка поиска -->
+    <EditText
+        android:id="@+id/targetInput"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Куда (например RUB)"
+        android:inputType="textCapCharacters"
+        android:layout_marginTop="10dp"/>
+
     <Button
         android:id="@+id/searchButton"
-        android:layout_width="60dp"
-        android:layout_height="50dp"
-        android:text="🔍"
-        android:layout_marginEnd="16dp"
-        app:layout_constraintTop_toTopOf="@id/currencyInput"
-        app:layout_constraintBottom_toBottomOf="@id/currencyInput"
-        app:layout_constraintEnd_toEndOf="parent"/>
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Получить курс"
+        android:layout_marginTop="12dp"/>
 
-    <!-- Название валюты -->
     <TextView
         android:id="@+id/currencyName"
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Название"
-        android:textSize="24sp"
-        android:textColor="#4FC3F7"
-        android:layout_marginStart="16dp"
-        android:layout_marginTop="24dp"
-        app:layout_constraintTop_toBottomOf="@id/currencyInput"
-        app:layout_constraintStart_toStartOf="parent"/>
+        android:text="—"
+        android:textSize="32sp"
+        android:layout_marginTop="20dp"/>
 
-    <!-- Цена -->
     <TextView
         android:id="@+id/currencyPrice"
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Курс: 0.00"
-        android:textSize="18sp"
-        android:textColor="#FFFFFF"
-        android:layout_marginStart="16dp"
-        android:layout_marginTop="8dp"
-        app:layout_constraintTop_toBottomOf="@id/currencyName"
-        app:layout_constraintStart_toStartOf="parent"/>
+        android:text="—"
+        android:textSize="22sp"
+        android:layout_marginTop="10dp"/>
 
-</androidx.constraintlayout.widget.ConstraintLayout>
+</LinearLayout>

@@ -1,14 +1,10 @@
 package com.example.kursovaya.network
 
 import retrofit2.http.GET
-import retrofit2.http.Query
+import retrofit2.http.Path
 
 interface CurrencyApi {
-
-    @GET("convert")
-    suspend fun convert(
-        @Query("from") from: String,
-        @Query("to") to: String = "RUB",
-        @Query("amount") amount: Double = 1.0
-    ): ConvertResponse
+    // пример: https://open.er-api.com/v6/latest/USD
+    @GET("v6/latest/{base}")
+    suspend fun latest(@Path("base") base: String): ExchangeResponse
 }

@@ -7,17 +7,19 @@ import retrofit2.converter.gson.GsonConverterFactory
 
 object ApiClient {
 
-    private val logger = HttpLoggingInterceptor().apply {
+    private const val BASE_URL = "https://open.er-api.com/"
+
+    private val logging = HttpLoggingInterceptor().apply {
         level = HttpLoggingInterceptor.Level.BODY
     }
 
-    private val okHttp = OkHttpClient.Builder()
-        .addInterceptor(logger)
+    private val client = OkHttpClient.Builder()
+        .addInterceptor(logging)
         .build()
 
     private val retrofit = Retrofit.Builder()
-        .baseUrl("https://api.exchangerate.host/")
-        .client(okHttp)
+        .baseUrl(BASE_URL)
+        .client(client)
         .addConverterFactory(GsonConverterFactory.create())
         .build()
 
