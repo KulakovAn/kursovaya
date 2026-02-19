@@ -5,9 +5,11 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageButton
 import android.widget.TextView
+import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.card.MaterialCardView
 
 class FavoritesAdapter(
     private val onDeleteClick: (pair: String) -> Unit
@@ -22,6 +24,7 @@ class FavoritesAdapter(
     }
 
     class VH(itemView: View) : RecyclerView.ViewHolder(itemView) {
+        val card: MaterialCardView = itemView.findViewById(R.id.itemCard)
         val pairText: TextView = itemView.findViewById(R.id.pairText)
         val rateText: TextView = itemView.findViewById(R.id.rateText)
         val updateText: TextView = itemView.findViewById(R.id.updateText)
@@ -40,12 +43,21 @@ class FavoritesAdapter(
         holder.rateText.text = item.rateText
         holder.updateText.text = item.updatedText
 
-        // скрываем кнопку удаления на "пустом" элементе
+        val ctx = holder.itemView.context
         val isEmpty = item.pair == "__empty__"
         holder.deleteButton.visibility = if (isEmpty) View.GONE else View.VISIBLE
 
-        holder.deleteButton.setOnClickListener {
-            onDeleteClick(item.pair)
+        holder.deleteButton.setOnClickListener { onDeleteClick(item.pair) }
+
+        // Цвет рамки по тренду
+        val strokeColor = when (item.trend) {
+            RateTrend.UP -> android.R.color.holo_green_light
+            RateTrend.DOWN -> android.R.color.holo_red_light
+            RateTrend.SAME -> android.R.color.darker_gray
+            RateTrend.UNKNOWN -> android.R.color.darker_gray
         }
+        holder.card.strokeColor = ContextCompat.getColor(ctx, strokeColor)
+
+
     }
 }

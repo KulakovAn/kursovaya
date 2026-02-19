@@ -3,6 +3,7 @@ package com.example.kursovaya
 import android.os.Bundle
 import android.util.Log
 import android.view.View
+import android.view.animation.AnimationUtils
 import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
@@ -28,6 +29,9 @@ class FavoritesFragment : Fragment(R.layout.fragment_favorites) {
     private lateinit var recycler: RecyclerView
     private lateinit var adapter: FavoritesAdapter
 
+    // Чтобы анимация списка была только один раз и не дергала при обновлениях
+    private var firstAnimationDone = false
+
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
@@ -37,20 +41,25 @@ class FavoritesFragment : Fragment(R.layout.fragment_favorites) {
         adapter = FavoritesAdapter { pair ->
             FavoritesStore.remove(requireContext(), pair)
             Toast.makeText(requireContext(), "Удалено: $pair", Toast.LENGTH_SHORT).show()
-            refresh(false)
+            refresh(showLoader = false)
         }
 
         recycler.layoutManager = LinearLayoutManager(requireContext())
         recycler.adapter = adapter
 
-        swipe.setOnRefreshListener { refresh(false) }
+        // Layout-анимация (важно: запускать будем только один раз)
+        recycler.layoutAnimation =
+            AnimationUtils.loadLayoutAnimation(requireContext(), R.anim.layout_fall_down)
 
-        refresh(true)
+        swipe.setOnRefreshListener { refresh(showLoader = false) }
+
+        refresh(showLoader = true)
     }
 
     override fun onResume() {
         super.onResume()
-        refresh(false)
+        // Обновим, если на первом табе добавили новое избранное
+        refresh(showLoader = false)
     }
 
     private fun refresh(showLoader: Boolean) {
@@ -64,27 +73,33 @@ class FavoritesFragment : Fragment(R.layout.fragment_favorites) {
                         base = "—",
                         target = "—",
                         rateText = "Нет избранных валют",
-                        updatedText = "Добавь пары на вкладке «Курсы» (⭐)"
+                        updatedText = "Добавь пары на вкладке «Курсы» (⭐)",
+                        trend = RateTrend.UNKNOWN
                     )
                 )
-            )
+            ) {
+                runFirstAnimationOnce()
+            }
+
             swipe.isRefreshing = false
             return
         }
 
+        // Показать “Загрузка...” без повторной анимации каждый раз
         val initial = pairs.mapNotNull { parsePair(it) }.map {
-            it.copy(rateText = "Загрузка...", updatedText = "")
+            it.copy(rateText = "Загрузка...", updatedText = "", trend = RateTrend.UNKNOWN)
         }
 
-        adapter.submitList(initial)
+        adapter.submitList(initial) {
+            runFirstAnimationOnce()
+        }
 
         if (showLoader) swipe.isRefreshing = true
 
         viewLifecycleOwner.lifecycleScope.launch {
             try {
-                val updated = withContext(Dispatchers.IO) {
-                    loadRatesForPairs(initial)
-                }
+                val updated = withContext(Dispatchers.IO) { loadRatesForPairs(initial) }
+                // ВАЖНО: тут НЕ запускаем layoutAnimation, чтобы не было дергания
                 adapter.submitList(updated)
             } catch (e: Exception) {
                 Log.e(tagLog, "Ошибка обновления: ${e.message}", e)
@@ -95,6 +110,13 @@ class FavoritesFragment : Fragment(R.layout.fragment_favorites) {
         }
     }
 
+    private fun runFirstAnimationOnce() {
+        if (!firstAnimationDone) {
+            recycler.scheduleLayoutAnimation()
+            firstAnimationDone = true
+        }
+    }
+
     private fun parsePair(pair: String): FavoriteUi? {
         val parts = pair.split("->")
         if (parts.size != 2) return null
@@ -102,20 +124,23 @@ class FavoritesFragment : Fragment(R.layout.fragment_favorites) {
         val base = parts[0].trim().uppercase()
         val target = parts[1].trim().uppercase()
 
-        if (!base.matches(Regex("^[A-Z]{3}$")) ||
-            !target.matches(Regex("^[A-Z]{3}$"))
-        ) return null
+        if (!base.matches(Regex("^[A-Z]{3}$")) || !target.matches(Regex("^[A-Z]{3}$"))) return null
 
         return FavoriteUi(
             pair = "$base->$target",
             base = base,
             target = target,
             rateText = "Загрузка...",
-            updatedText = ""
+            updatedText = "",
+            trend = RateTrend.UNKNOWN
         )
     }
 
+    /**
+     * Оптимизация: 1 запрос на каждую базовую валюту
+     */
     private suspend fun loadRatesForPairs(items: List<FavoriteUi>): List<FavoriteUi> {
+        val ctx = requireContext()
         val bases = items.map { it.base }.distinct()
 
         val responses = kotlinx.coroutines.coroutineScope {
@@ -128,9 +153,9 @@ class FavoritesFragment : Fragment(R.layout.fragment_favorites) {
             val resp = responses[item.base]
 
             if (resp == null) {
-                item.copy(rateText = "Нет данных", updatedText = "")
+                item.copy(rateText = "Нет данных", updatedText = "", trend = RateTrend.UNKNOWN)
             } else if (resp.result != "success") {
-                item.copy(rateText = "Ошибка API", updatedText = "")
+                item.copy(rateText = "Ошибка API", updatedText = "", trend = RateTrend.UNKNOWN)
             } else {
                 val rate = resp.rates[item.target]
                 val niceTime = formatUtc(resp.lastUpdateUtc)
@@ -138,12 +163,24 @@ class FavoritesFragment : Fragment(R.layout.fragment_favorites) {
                 if (rate == null) {
                     item.copy(
                         rateText = "Нет ${item.target}",
-                        updatedText = "Обновлено: $niceTime"
+                        updatedText = if (niceTime.isBlank()) "" else "Обновлено: $niceTime",
+                        trend = RateTrend.UNKNOWN
                     )
                 } else {
+                    val old = RateHistoryStore.get(ctx, item.pair)
+                    val trend = when {
+                        old == null -> RateTrend.UNKNOWN
+                        rate > old -> RateTrend.UP
+                        rate < old -> RateTrend.DOWN
+                        else -> RateTrend.SAME
+                    }
+
+                    RateHistoryStore.put(ctx, item.pair, rate)
+
                     item.copy(
                         rateText = "1 ${item.base} = ${"%.4f".format(rate)} ${item.target}",
-                        updatedText = "Обновлено: $niceTime"
+                        updatedText = if (niceTime.isBlank()) "" else "Обновлено: $niceTime",
+                        trend = trend
                     )
                 }
             }
@@ -151,31 +188,22 @@ class FavoritesFragment : Fragment(R.layout.fragment_favorites) {
     }
 
     /**
-     * Работает на minSdk 24 (без java.time)
-     * Вход: "Tue, 18 Feb 2025 00:02:31 +0000"
-     * Выход: "19.02.2026 12:00"
+     * minSdk 24: форматируем RFC1123 в локальное время телефона
+     * вход: "Tue, 18 Feb 2025 00:02:31 +0000"
      */
     private fun formatUtc(input: String?): String {
         if (input.isNullOrBlank()) return ""
 
         return try {
-            val parser = SimpleDateFormat(
-                "EEE, dd MMM yyyy HH:mm:ss Z",
-                Locale.US
-            ).apply {
+            val parser = SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss Z", Locale.US).apply {
                 timeZone = TimeZone.getTimeZone("UTC")
             }
-
             val date: Date = parser.parse(input) ?: return input
 
-            val formatter = SimpleDateFormat(
-                "dd.MM.yyyy HH:mm",
-                Locale.getDefault()
-            ).apply {
+            val out = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()).apply {
                 timeZone = TimeZone.getDefault()
             }
-
-            formatter.format(date)
+            out.format(date)
         } catch (_: Exception) {
             input
         }
